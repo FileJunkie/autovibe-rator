@@ -15,8 +15,9 @@
 Create a locally runnable agent/harness that can:
 - Receive GitHub webhook events
 - Filter them using two-stage logic
-- Invoke Mistral Vibe with proper context
+- Invoke Mistral Vibe with proper context in an isolated Docker container
 - Post responses back to GitHub
+- Automatically clean up after execution
 
 This allows testing the full workflow before packaging.
 
@@ -26,6 +27,7 @@ From planning session:
 - Trigger: GitHub Webhooks (real-time)
 - Filtering: Two-stage (keyword + validation)
 - Response: Comments + Reviews via GitHub App
+- Safety: Docker sandboxing with automatic cleanup per invocation
 
 ## Architecture
 
@@ -36,11 +38,12 @@ Directory structure:
 - src/agent/webhook/handler.ts - Route events to appropriate processors
 - src/agent/filter/stage1.ts - Keyword/ping filter
 - src/agent/filter/stage2.ts - Event type, author, repo validation
-- src/agent/vibe/invoke.ts - Invoke Vibe with context
+- src/agent/vibe/invoke.ts - Invoke Vibe with context in Docker container
 - src/agent/vibe/persona.md - Reviewer persona configuration
 - src/agent/github/post-comment.ts - Post comment handler
 - src/agent/github/post-review.ts - Post review handler
 - src/utils/github-auth.ts - GitHub App authentication helper
+- Dockerfile - Container image definition
 
 ## Implementation Steps
 
@@ -71,25 +74,34 @@ Create a handler that processes GitHub events:
 
 ### 4. Two-Stage Filtering
 
-Stage 1 Filter (src/agent/filter/stage1.ts):
+Stage 1 Filter:
 - Check if event is from the bot itself (autovibe-rator[bot]) - skip to avoid loops
 - For issue comments: check if body contains @autovibe-rator or @autovibe-rator[bot]
 - For new issues: check if title or body contains ping, or if issue has labels: needs-review or autovibe-rator
 - Return true if any ping/label is found, false otherwise
 
-Stage 2 Filter (src/agent/filter/stage2.ts):
+Stage 2 Filter:
 - Check if repository is in the allowed repos whitelist
 - Verify the event action is one of the supported types
 - Return true if valid, false otherwise
 
-### 5. Vibe Invocation
+### 5. Vibe Invocation in Docker Container
 
-Create a module that:
+Create a Docker-based invocation module that:
+- Generates a unique container name per invocation (using timestamp + random string)
 - Builds a prompt based on the event context (issue, comment, or PR)
 - Prepends the reviewer persona to the prompt
-- Invokes Vibe with the --agent auto-approve flag
-- Captures Vibe's output
-- Handles errors from Vibe process
+- Runs Docker container with the --rm flag for automatic cleanup
+- Passes the event payload and configuration to the container via environment variables
+- Captures Vibe's output from the container
+- Handles errors from the Docker process
+
+The container will:
+- Receive the event context via environment variables
+- Clone the repository into its own isolated filesystem
+- Run Vibe with the --agent auto-approve flag
+- Post the response back to GitHub
+- Exit, triggering automatic cleanup
 
 The persona should define:
 - Identity as autovibe-rator, a senior code reviewer
@@ -110,29 +122,50 @@ Create src/agent/index.ts that:
 - Starts the server on the configured port
 - Logs the webhook endpoint URL
 
-### 8. Dependencies
+### 8. Dockerfile
+
+Create a Dockerfile that:
+- Uses a Node.js base image (version 20 or later)
+- Installs git for repository cloning
+- Copies the project files
+- Installs dependencies with npm ci
+- Sets up the entry point to run the Vibe invocation
+- Runs as non-root user for security
+
+### 9. Docker Configuration
+
+The harness needs Docker installed on the host system. The container should be run with:
+- --rm flag for automatic cleanup on exit
+- Unique container name per invocation for identification
+- Environment variables for configuration and event data
+- No volume mounts needed as the repo is cloned inside the container
+
+### 10. Dependencies
 
 Add to package.json:
 - express for the webhook server
 - @octokit/webhooks-types for type definitions
-- child_process for spawning Vibe
 
-### 9. Environment Variables
+System dependencies:
+- Docker daemon running on the host
+
+### 11. Environment Variables
 
 Required environment variables:
 - GITHUB_WEBHOOK_SECRET: for verifying webhook signatures
 - PORT: server port (default 3000)
-- VIBE_CMD: path to vibe command (default "vibe")
+- DOCKER_CMD: path to docker command (default "docker")
 
 ## Testing Setup
 
 ### Local Testing with ngrok
 
-1. Install ngrok
-2. Start the agent: npm run agent:dev
-3. Start ngrok: ngrok http 3000
-4. Copy the HTTPS URL from ngrok
-5. Configure GitHub webhook with this URL + /webhook
+1. Install ngrok and Docker
+2. Build the Docker image: docker build -t autovibe-agent .
+3. Start the agent: npm run agent:dev
+4. Start ngrok: ngrok http 3000
+5. Copy the HTTPS URL from ngrok
+6. Configure GitHub webhook with this URL + /webhook
 
 ### Test Scenarios
 
@@ -145,18 +178,23 @@ Required environment variables:
 
 - Stage 1 filter passes (ping or label detected)
 - Stage 2 filter passes (repo in whitelist)
-- Vibe is invoked with proper context
+- Unique Docker container created for each event
+- Vibe is invoked with proper context inside the container
 - Response is posted as bot comment
 - For PRs, also create a formal review
+- Container automatically cleaned up after execution
 
 ## Success Criteria
 
 - [ ] Webhook server receives and verifies GitHub events
 - [ ] Two-stage filtering works correctly
-- [ ] Vibe is invoked with proper context
+- [ ] Docker container created per invocation with unique name
+- [ ] Vibe runs successfully inside container
 - [ ] Responses are posted back to GitHub
 - [ ] Bot identity is correct (autovibe-rator[bot])
+- [ ] Containers automatically cleaned up after execution
 - [ ] Local testing with ngrok works
+- [ ] Multiple concurrent invocations handled without conflicts
 
 ## Next Steps
 

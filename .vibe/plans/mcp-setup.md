@@ -21,6 +21,12 @@ From planning session: We need Vibe to have access to GitHub operations through 
 - Provide tools that Vibe can call without direct API access
 - Keep configuration in git (secrets in .env/.gitignore)
 
+Note: The agent will run Vibe inside Docker containers for sandboxing. The MCP server can either:
+- Run on the host and be accessible to containers via socket/HTTP transport
+- Be included in the Docker image and run inside each container
+
+For simplicity, we will start with the MCP server running on the host, using stdio transport for local development and socket transport for container access.
+
 ## Architecture
 
 Directory structure:
@@ -68,7 +74,8 @@ Create src/mcp-server/index.ts that:
 - Imports and initializes McpServer from the MCP SDK
 - Loads configuration from config.json (containing github token)
 - Registers all GitHub tools
-- Connects via StdioServerTransport
+- Connects via StdioServerTransport for local development
+- Also supports SocketServerTransport for container communication
 - Handles config errors gracefully with clear error messages
 
 ### 4. Configuration
@@ -78,6 +85,10 @@ Create src/mcp-server/index.ts that:
 - Create config.template.json with placeholder values (this can be committed to git)
 
 Example config fields needed: github.token
+
+For Docker compatibility, the MCP server should also accept configuration via:
+- Environment variables (GITHUB_TOKEN, etc.)
+- Command-line arguments
 
 ### 5. GitHub Tools Implementation
 
@@ -96,30 +107,40 @@ Create tsconfig.json with:
 - Root dir: src
 - Out dir: dist
 
-### 7. Build Scripts
+### 7. Transport Support
+
+The MCP server should support multiple transports for different use cases:
+- Stdio: For local development and direct Vibe usage
+- Socket: For Docker container communication (Unix domain socket or TCP)
+
+This allows the harness to launch containers that connect back to the host's MCP server.
+
+### 8. Build Scripts
 
 Add to package.json scripts section:
 - build: runs TypeScript compiler
-- dev: runs server with ts-node for development
-- start: runs compiled server with node
+- dev: runs server with ts-node for development (stdio transport)
+- start: runs compiled server with node (configurable transport)
 
 ## Vibe Configuration
 
-Create or update .vibe/config.toml to include:
+For local development, create or update .vibe/config.toml to include:
 - An mcp_servers entry named autovibe-rator
 - transport set to stdio
 - command set to node
 - args pointing to the compiled server entry point
 - env setting CONFIG_PATH to ./config.json
 
+For Docker production usage, the configuration will use socket transport pointing to the host's MCP server socket.
+
 ## Testing
 
 1. Run build script
 2. Create config.json with a valid GitHub token
-3. Start the server
-4. In another terminal, run Vibe with auto-approve agent
+3. Start server: npm start
+4. In another terminal, run Vibe: vibe --agent auto-approve
 5. Use /mcp list to verify autovibe-rator tools appear
-6. Test by invoking a tool to create a GitHub issue
+6. Test by invoking a tool to fetch a GitHub issue
 
 ## Success Criteria
 
@@ -128,6 +149,7 @@ Create or update .vibe/config.toml to include:
 - [ ] Vibe can successfully invoke tools and receive responses
 - [ ] Configuration is validated on startup
 - [ ] Secrets are properly excluded from git
+- [ ] Server supports both stdio and socket transports
 
 ## Next Steps
 
