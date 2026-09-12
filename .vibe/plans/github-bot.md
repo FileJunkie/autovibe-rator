@@ -5,7 +5,6 @@
 **Priority**: High (Phase 1)
 **Status**: Not Started
 **Depends on**: mcp-setup.md (needs MCP tools available)
-**Becomes Issue**: #2
 
 ---
 
@@ -162,4 +161,4 @@ Expected output: `Authenticated as: autovibe-rator[bot]`
 
 ## Next Steps
 
-After this plan is complete and tested, convert to GitHub issue #2 and delete this file.
+After this plan is complete and tested, convert to a GitHub issue and delete this file.

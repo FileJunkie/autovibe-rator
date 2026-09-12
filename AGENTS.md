@@ -72,11 +72,11 @@ These decisions are FINALIZED and should not be re-opened without explicit user 
    - File deleted after issue creation
    - Implementation tracked via GitHub issue
 4. **Current Plans**:
-   - `mcp-setup.md` → GitHub Issue #1
-   - `github-bot.md` → GitHub Issue #2
-   - `local-agent.md` → GitHub Issue #3
-   - `debian-package.md` → GitHub Issue #4
-   - `publishing.md` → GitHub Issue #5
+   - `mcp-setup.md`
+   - `github-bot.md`
+   - `local-agent.md`
+   - `debian-package.md`
+   - `publishing.md`
 
 ## Agent Configuration
 

@@ -5,7 +5,6 @@
 **Priority**: Medium (Phase 3)
 **Status**: Not Started
 **Depends on**: mcp-setup.md, github-bot.md, local-agent.md
-**Becomes Issue**: #4
 
 ---
 
@@ -410,4 +409,4 @@ find /tmp/deb-test -type f
 
 ## Next Steps
 
-After this plan is complete and tested, convert to GitHub issue #4 and delete this file.
+After this plan is complete and tested, convert to a GitHub issue and delete this file.

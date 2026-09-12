@@ -5,7 +5,6 @@
 **Priority**: Medium (Phase 2)
 **Status**: Not Started
 **Depends on**: mcp-setup.md, github-bot.md
-**Becomes Issue**: #3
 
 ---
 
@@ -554,4 +553,4 @@ VIBE_CMD=vibe
 
 ## Next Steps
 
-After this plan is complete and tested, convert to GitHub issue #3 and delete this file.
+After this plan is complete and tested, convert to a GitHub issue and delete this file.

@@ -5,7 +5,6 @@
 **Priority**: Medium (Phase 4)
 **Status**: Not Started
 **Depends on**: debian-package.md
-**Becomes Issue**: #5
 
 ---
 
@@ -428,7 +427,7 @@ jobs:
 
 ## Next Steps
 
-After this plan is complete and tested, convert to GitHub issue #5 and delete this file.
+After this plan is complete and tested, convert to a GitHub issue and delete this file.
 
 ## Final Notes
 

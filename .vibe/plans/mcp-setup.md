@@ -5,7 +5,6 @@
 **Priority**: High (Phase 1)
 **Status**: Not Started
 **Depends on**: Nothing
-**Becomes Issue**: #1
 
 ---
 
@@ -150,4 +149,4 @@ CONFIG_PATH = "./config.json"
 
 ## Next Steps
 
-After this plan is complete and tested, convert to GitHub issue #1 and delete this file.
+After this plan is complete and tested, convert to a GitHub issue and delete this file.
