@@ -12,152 +12,94 @@
 
 ## Objective
 
-Set up a GitHub App for the `autovibe-rator[bot]` identity. This will provide authentication for the harness to post comments and reviews on behalf of the bot.
+Set up a GitHub App for the `autovibe-rator[bot]` identity. This provides authentication for the harness to post comments and reviews on GitHub.
 
-## Background
+## For Developer (@filejunkie) - Steps to Perform
 
-From planning session: Using GitHub App (Option B) for:
-- Dedicated bot identity (`autovibe-rator[bot]`)
-- Granular permissions
-- JWT authentication
-- Designed for automation
-
-## Steps
+**You must do these steps yourself. Vibe cannot create GitHub Apps on your behalf.**
 
 ### 1. Create GitHub App
 
-**Location**: https://github.com/settings/apps/new
+In your browser:
+1. Go to: https://github.com/settings/apps/new
+2. Fill the form:
+   - **Application name**: `autovibe-rator`
+   - **Homepage URL**: `https://github.com/FileJunkie/autovibe-rator`
+   - **Callback URL**: Leave blank
+   - **Webhook URL**: Leave blank (set later)
+   - **Webhook Secret**: Generate one and **SAVE IT**
+3. Click "Create GitHub App"
 
-**App Settings**:
-- **Application name**: `autovibe-rator`
-- **Homepage URL**: `https://github.com/FileJunkie/autovibe-rator` (or your repo URL)
-- **Callback URL**: Not needed for JWT flow (leave blank or use placeholder)
-- **Webhook URL**: Will be configured later (for now, leave blank)
-- **Webhook Secret**: Generate and save securely
+### 2. Configure Permissions
 
-### 2. App Permissions
+On the app settings page:
+- Under **Repository permissions**:
+  - [x] Issues: Read and write
+  - [x] Pull requests: Read and write
+  - [x] Contents: Read-only
+  - [x] Metadata: Read-only
+- Scroll down and click **Save**
 
-**Repository permissions**:
-- [x] **Issues**: Read and write
-- [x] **Pull requests**: Read and write
-- [x] **Contents**: Read-only (for context)
-- [x] **Metadata**: Read-only
+### 3. Generate Private Key
 
-**Organization permissions**: None needed (repo-level installation)
+On the app settings page:
+1. Scroll to "Private keys" section
+2. Click "Generate a private key"
+3. Save the downloaded `.pem` file as `github-app-private-key.pem` in project root
+4. Add `github-app-private-key.pem` to `.gitignore`
 
-### 3. App Identity
+**WARNING**: Never commit this file. It grants full access to your GitHub account.
 
-- **Bot user**: `autovibe-rator` (or `autovibe-rator[bot]`)
-- **Description**: "Autonomous code review agent for Mistral Vibe"
+### 4. Install App on Repository
 
-### 4. Generate Private Key
+1. Go to: https://github.com/apps/autovibe-rator/installations/new
+2. Select your repository (FileJunkie/autovibe-rator)
+3. Click "Install"
+4. Note the **Installation ID** from the URL
 
-1. After creation, go to app settings
-2. Scroll to "Private keys"
-3. Click "Generate a private key"
-4. Save as `github-app-private-key.pem` in project root (add to .gitignore)
+### 5. Record Configuration
 
-### 5. App ID and Installation
-
-- **App ID**: Save as `GITHUB_APP_ID` in `.env`
-- **Installation**: Install app on your target repository (or organization)
-- **Installation ID**: Save as `GITHUB_APP_INSTALLATION_ID` in `.env`
-
-### 6. Environment Variables
-
-Create `.env` file (add to `.gitignore`):
+Create `.env` in project root (add to `.gitignore`):
 ```bash
-# GitHub App Authentication
-GITHUB_APP_ID=123456
-GITHUB_APP_INSTALLATION_ID=789012
+GITHUB_APP_ID=YOUR_APP_ID
+GITHUB_APP_INSTALLATION_ID=YOUR_INSTALLATION_ID
 GITHUB_APP_PRIVATE_KEY_PATH=./github-app-private-key.pem
-
-# MCP Server
-GITHUB_TOKEN=ghp_...  # Fallback for MCP server (optional)
+GITHUB_WEBHOOK_SECRET=your_webhook_secret
 ```
 
-Create `.env.example` (commit to git):
+Create `.env.example` (commit this to git):
 ```bash
-# Copy this to .env and fill in values
 GITHUB_APP_ID=
 GITHUB_APP_INSTALLATION_ID=
 GITHUB_APP_PRIVATE_KEY_PATH=./github-app-private-key.pem
+GITHUB_WEBHOOK_SECRET=
 ```
 
-### 7. JWT Authentication Helper
+### 6. Configure Webhook
 
-Create `src/utils/github-auth.ts`:
-```typescript
-import { createAppAuth } from "@octokit/auth-app";
-
-export function getGitHubAuth() {
-  return createAppAuth({
-    appId: process.env.GITHUB_APP_ID!,
-    privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
-    installationId: process.env.GITHUB_APP_INSTALLATION_ID!,
-  });
-}
-```
-
-### 8. Update MCP Server
-
-Modify GitHub tools to use App authentication instead of PAT:
-```typescript
-import { Octokit } from "@octokit/rest";
-import { getGitHubAuth } from "../utils/github-auth";
-
-const auth = await getGitHubAuth();
-const octokit = new Octokit({ auth });
-```
-
-### 9. Test Authentication
-
-Create a test script `scripts/test-auth.ts`:
-```typescript
-import { getGitHubAuth } from "../src/utils/github-auth";
-
-async function test() {
-  const auth = await getGitHubAuth();
-  const octokit = new Octokit({ auth });
-  const { data } = await octokit.rest.users.getAuthenticated();
-  console.log("Authenticated as:", data.login);
-}
-
-test();
-```
-
-Run: `npx ts-node scripts/test-auth.ts`
-
-Expected output: `Authenticated as: autovibe-rator[bot]`
-
-## Bot Identity Verification
-
-1. Create a test issue in your repo
-2. Have the bot post a comment
-3. Verify the comment shows author as `autovibe-rator[bot]`
-
-## Repository Webhook Setup
-
-1. Go to repository: https://github.com/FileJunkie/autovibe-rator/settings/hooks/new
-2. **Payload URL**: `https://your-webhook-url/webhook` (or ngrok URL for local dev)
+1. Go to: https://github.com/FileJunkie/autovibe-rator/settings/hooks/new
+2. **Payload URL**: `https://your-server.com/webhook` (set when deploying)
 3. **Content type**: `application/json`
-4. **Secret**: Same as app webhook secret
-5. **Events**: Select individual events:
-   - [x] Issues
-   - [x] Issue comments
-   - [x] Pull requests
-   - [x] Pull request reviews
-   - [x] Pull request review comments
+4. **Secret**: Use the webhook secret from step 1
+5. **Events**: Check: Issues, Issue comments, Pull requests, Pull request reviews, Pull request review comments
 6. **Active**: Checked
+7. Click "Add webhook"
+
+## Notes
+
+- You must do this yourself - Vibe cannot create GitHub Apps
+- The bot will appear as `autovibe-rator[bot]` on GitHub
+- Use ngrok for local testing: `ngrok http 3000`
 
 ## Success Criteria
 
 - [ ] GitHub App created with correct permissions
-- [ ] Private key generated and stored securely
-- [ ] App installed on target repository
-- [ ] Bot can authenticate and make API calls
-- [ ] Bot identity shows as `autovibe-rator[bot]`
-- [ ] Webhook configured on repository
+- [ ] Private key saved securely (NOT in git)
+- [ ] App installed on repository
+- [ ] Bot identity confirmed as `autovibe-rator[bot]`
+- [ ] `.env` and `.env.example` created
+- [ ] `.gitignore` updated
+- [ ] Webhook configured
 
 ## Next Steps
 
