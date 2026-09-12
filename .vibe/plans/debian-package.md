@@ -60,7 +60,7 @@ Create debian/DEBIAN/control with:
 - Architecture: amd64
 - Maintainer: FileJunkie
 - Description: Autonomous GitHub agent for Mistral Vibe using Docker sandboxing
-- Dependencies: docker.io (or docker-ce), nodejs (>= 20.0.0), npm
+- Depends: docker.io | docker-ce, nodejs (>= 20.0.0), npm
 - Homepage: https://github.com/FileJunkie/autovibe-rator
 
 ### 3. Docker Image
