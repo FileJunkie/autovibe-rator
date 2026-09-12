@@ -10,6 +10,8 @@
 
 **PROCESS NOTE**: This plan will be converted to a GitHub issue. After all issues are created, you will tell me which one to implement. I will work in IMPLEMENT mode on that specific issue only.
 
+**PERFECTION STEP**: Before implementing, I will show you the plan so we can polish it to perfection together.
+
 **AGENT INSTRUCTION**: You are in PLAN mode. Read this file, ask clarifying questions if needed, but do NOT start implementation. When user says "implement" or "start", convert this to a GitHub issue and delete this file.
 
 ## Objective

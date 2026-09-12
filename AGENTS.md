@@ -8,20 +8,52 @@ After plans are finalized:
 
 1. **I will explain** how to set up MCP so we can create GitHub issues from the plans in `.vibe/plans/`
 
-2. **You will create GitHub issues** for each plan file:
-   - mcp-setup.md
-   - github-bot.md
-   - local-agent.md (harness + ngrok setup)
-   - debian-package.md
-   - publishing.md
+2. **You will create GitHub issues** for each plan (3 total):
+   - **Issue 1**: MCP Setup (mcp-setup.md)
+   - **Issue 2**: Local harness + GitHub setup (github-bot.md + local-agent.md)
+   - **Issue 3**: Debian package + deployment (debian-package.md + publishing.md)
 
 3. **You will tell me which issue to work on** - I will switch to IMPLEMENT mode for that specific issue only
 
-4. **The implementation order will be**:
-   - Issue 1: Create the locally runnable harness (from local-agent.md and mcp-setup.md)
-   - Issue 2: Ask you to set up GitHub so callbacks to ngrok work (from github-bot.md)
-   - Issue 3: Generate .deb package (from debian-package.md)
-   - Issue 4: Tell you how to deploy and work with it on server (from publishing.md)
+## Issue Details
+
+### Issue 1: MCP Setup
+**Plan**: mcp-setup.md
+
+**What I will do**:
+- Implement the MCP server with GitHub tools
+- Configure it for this project
+- **I will ask you for**: GitHub access token/keys for authentication
+
+**After completion**: I will remove the plan file from the repo.
+
+### Issue 2: Local Harness + GitHub Setup
+**Combines**: github-bot.md, local-agent.md
+
+**What I will do**:
+- Implement the webhook harness with Docker sandboxing
+- Implement the two-stage filtering
+
+**What I will ask you to do**:
+- Set up GitHub App for bot identity
+- Configure GitHub webhook with ngrok URL
+- Create a separate sandbox GitHub repository for testing
+
+**Result**: A working local harness that can receive webhooks, invoke Vibe in Docker, and post responses back to GitHub.
+
+### Issue 3: Debian Package + Deployment
+**Combines**: debian-package.md, publishing.md
+
+**What I will do**:
+- Create the .deb package with Docker dependency
+- Set up the publishing workflow to gh-pages
+
+**What I will tell you**:
+- How to install the .deb on your VPS
+- How to configure it
+- How to start the service
+
+**Result**: An installable .deb package that users can install via apt.
 
 ## Mode Tracking
 
@@ -34,7 +66,7 @@ You should:
 
 ### Mode Transition
 
-**PLAN mode** → **IMPLEMENT mode** when you explicitly say: "implement issue #X" or "work on issue #X"
+**PLAN mode** → **IMPLEMENT mode** when you explicitly say: "implement issue #1", "implement issue #2", or "implement issue #3"
 
 **IMPLEMENT mode** → **PLAN mode** when you say "plan", "let's plan", or "stop"
 
@@ -76,19 +108,17 @@ These are fixed - do not re-discuss:
 ## For Developer (@filejunkie)
 
 ### Next Immediate Steps:
-1. Review all plans in `.vibe/plans/` - they now include Docker sandboxing
+1. Review all plans in `.vibe/plans/`
 2. Ask me any clarifying questions about the plans
 3. Once satisfied, ask me to explain MCP setup for issue creation
-4. Create GitHub issues from each plan file
+4. Create 3 GitHub issues (one per plan grouping as described above)
 5. Delete the plan files after issue creation
 6. Tell me which issue to start with (e.g., "implement issue #1")
 
 ### Implementation Order:
-The issues should be created and worked on in this order:
-1. Local harness + MCP server (local-agent.md + mcp-setup.md combined)
-2. GitHub bot setup (github-bot.md) - you will need to do manual steps
-3. Debian package (debian-package.md)
-4. Publishing workflow (publishing.md)
+1. Issue 1: MCP Setup (mcp-setup.md) - I'll ask you for GitHub access keys
+2. Issue 2: Local harness + GitHub setup (github-bot.md + local-agent.md)
+3. Issue 3: Debian package + VPS deployment (debian-package.md + publishing.md)
 
 ## Auto-Update
 
