@@ -23,32 +23,27 @@ From planning session: We need Vibe to have access to GitHub operations through 
 
 ## Architecture
 
-```
-src/
-└── mcp-server/
-    ├── index.ts          # Server entry point
-    └── github/
-        ├── index.ts      # GitHub tools registrar
-        ├── get-issue.ts  # Get issue details
-        ├── get-pr.ts     # Get pull request details
-        ├── search-issues.ts
-        ├── create-comment.ts
-        └── create-review.ts
-```
+Directory structure:
+- src/mcp-server/index.ts - Server entry point
+- src/mcp-server/github/index.ts - GitHub tools registrar
+- src/mcp-server/github/get-issue.ts - Get issue details
+- src/mcp-server/github/get-pr.ts - Get pull request details
+- src/mcp-server/github/search-issues.ts - Search issues
+- src/mcp-server/github/create-comment.ts - Create comments
+- src/mcp-server/github/create-review.ts - Create reviews
 
 ## Tools to Implement
 
 ### Required Tools (Minimum Viable)
 
-| Tool Name | Description | Input Schema |
-|-----------|-------------|--------------|
-| `github_get_issue` | Get details of a GitHub issue | `owner`, `repo`, `issue_number` |
-| `github_get_pr` | Get details of a pull request | `owner`, `repo`, `pr_number` |
-| `github_search_issues` | Search issues in a repo | `owner`, `repo`, `query`, `state`, `per_page` |
-| `github_create_comment` | Create issue/PR comment | `owner`, `repo`, `issue_number`/`pr_number`, `body` |
-| `github_create_review` | Create PR review | `owner`, `repo`, `pr_number`, `body`, `event` (APPROVE/REQUEST_CHANGES/COMMENT) |
+- `github_get_issue` - Get details of a GitHub issue. Inputs: owner, repo, issue_number
+- `github_get_pr` - Get details of a pull request. Inputs: owner, repo, pr_number
+- `github_search_issues` - Search issues in a repo. Inputs: owner, repo, query, state, per_page
+- `github_create_comment` - Create issue/PR comment. Inputs: owner, repo, issue_number/pr_number, body
+- `github_create_review` - Create PR review. Inputs: owner, repo, pr_number, body, event (APPROVE/REQUEST_CHANGES/COMMENT)
 
 ### Nice-to-Have (Future)
+
 - `github_list_pr_files` - List files changed in a PR
 - `github_get_file_contents` - Get file contents from repo
 - `github_create_issue` - Create new issues
@@ -57,95 +52,82 @@ src/
 ## Implementation Steps
 
 ### 1. Project Structure
-```bash
-mkdir -p src/mcp-server/github
-```
 
-### 2. Dependencies (package.json)
-```json
-{
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.4.0",
-    "@octokit/rest": "^20.0.0",
-    "zod": "^3.22.0"
-  }
-}
-```
+Create directory: src/mcp-server/github
 
-### 3. MCP Server Entry Point (src/mcp-server/index.ts)
-- Import and initialize McpServer from SDK
-- Load configuration from `config.json` (github token)
-- Register all GitHub tools
-- Connect via StdioServerTransport
-- Must handle config errors gracefully
+### 2. Dependencies
+
+Add to package.json:
+- @modelcontextprotocol/sdk (version 0.4.0 or later)
+- @octokit/rest (version 20.0.0 or later)
+- zod (version 3.22.0 or later)
+
+### 3. MCP Server Entry Point
+
+Create src/mcp-server/index.ts that:
+- Imports and initializes McpServer from the MCP SDK
+- Loads configuration from config.json (containing github token)
+- Registers all GitHub tools
+- Connects via StdioServerTransport
+- Handles config errors gracefully with clear error messages
 
 ### 4. Configuration
-- Create `config.schema.json` - JSON Schema for config validation
-- Config file: `config.json` (in .gitignore for secrets, but we'll have a template)
-- Template in repo: `config.template.json` with placeholder values
 
-Example config:
-```json
-{
-  "github": {
-    "token": "ghp_..."
-  }
-}
-```
+- Create config.schema.json for JSON Schema validation of the config file
+- Config file: config.json (add to .gitignore since it contains secrets)
+- Create config.template.json with placeholder values (this can be committed to git)
+
+Example config fields needed: github.token
 
 ### 5. GitHub Tools Implementation
-- Use `@octokit/rest` for all GitHub API calls
-- Each tool validates input with zod
-- Each tool returns structured content (text with formatting)
-- Error handling: catch Octokit errors, return user-friendly messages
-- Use `X-GitHub-Api-Version: 2022-11-28` header
+
+Each tool file should:
+- Use @octokit/rest for all GitHub API calls
+- Validate input with zod schemas
+- Return structured content with proper text formatting
+- Handle Octokit errors and return user-friendly messages
+- Use X-GitHub-Api-Version: 2022-11-28 header for all requests
 
 ### 6. TypeScript Configuration
-- `tsconfig.json` with ESM modules
-- Target: ES2020
-- Out dir: `dist`
 
-### 7. Build Script
-```json
-{
-  "scripts": {
-    "build": "tsc",
-    "dev": "ts-node src/mcp-server/index.ts",
-    "start": "node dist/mcp-server/index.js"
-  }
-}
-```
+Create tsconfig.json with:
+- Target: ES2020
+- Module: ESM
+- Root dir: src
+- Out dir: dist
+
+### 7. Build Scripts
+
+Add to package.json scripts section:
+- build: runs TypeScript compiler
+- dev: runs server with ts-node for development
+- start: runs compiled server with node
 
 ## Vibe Configuration
 
-Create/update `.vibe/config.toml`:
-```toml
-[[mcp_servers]]
-name = "autovibe-rator"
-transport = "stdio"
-command = "node"
-args = ["dist/mcp-server/index.js"]
-
-[mcp_servers.env]
-CONFIG_PATH = "./config.json"
-```
+Create or update .vibe/config.toml to include:
+- An mcp_servers entry named autovibe-rator
+- transport set to stdio
+- command set to node
+- args pointing to the compiled server entry point
+- env setting CONFIG_PATH to ./config.json
 
 ## Testing
 
-1. Build: `npm run build`
-2. Create `config.json` with valid GitHub token
-3. Start server: `npm start`
-4. In another terminal, run Vibe: `vibe --agent auto-approve`
-5. Test tool: `/mcp list` should show autovibe-rator tools
-6. Test a call: Try creating a GitHub issue via Vibe
+1. Run build script
+2. Create config.json with a valid GitHub token
+3. Start the server
+4. In another terminal, run Vibe with auto-approve agent
+5. Use /mcp list to verify autovibe-rator tools appear
+6. Test by invoking a tool to create a GitHub issue
 
 ## Success Criteria
 
 - [ ] MCP server starts without errors
 - [ ] All 5 required tools are registered and callable
-- [ ] Vibe can invoke tools and get responses
+- [ ] Vibe can successfully invoke tools and receive responses
 - [ ] Configuration is validated on startup
-- [ ] Secrets are not in git
+- [ ] Secrets are properly excluded from git
 
 ## Next Steps
 

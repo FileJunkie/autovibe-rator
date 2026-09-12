@@ -12,11 +12,11 @@
 
 ## Objective
 
-Create a `.deb` package for the autovibe-rator agent that can be installed on Debian/Ubuntu systems. The package will:
-- Install the binary to `/usr/bin/autovibe-rator`
-- Install configuration to `/etc/autovibe-rator/`
+Create a .deb package for the autovibe-rator agent that can be installed on Debian/Ubuntu systems. The package will:
+- Install the binary to /usr/bin/autovibe-rator
+- Install configuration to /etc/autovibe-rator/
 - Set up a systemd service for automatic startup
-- Include man pages for documentation
+- Include example configuration
 
 ## Background
 
@@ -24,387 +24,170 @@ From planning session: The final deliverable should be a .deb file that can be i
 
 ## Directory Structure
 
-```
-autovibe-rator/
-├── debian/                  # Debian packaging files
-│   ├── DEBIAN/
-│   │   ├── control         # Package metadata
-│   │   ├── postinst        # Post-installation script
-│   │   ├── postrm          # Post-removal script
-│   │   └── prerm           # Pre-removal script
-│   ├── usr/
-│   │   ├── bin/
-│   │   │   └── autovibe-rator  # Symlink to actual binary
-│   │   └── lib/
-│   │       └── autovibe-rator/  # Actual files
-│   │           ├── bin/
-│   │           │   └── autovibe-rator  # Compiled binary
-│   │           └── etc/
-│   │               └── config.json.example
-│   └── lib/
-│       └── systemd/
-│           └── system/
-│               └── autovibe-rator.service
-└── ...
-```
+Debian package structure:
+- debian/DEBIAN/control - Package metadata
+- debian/DEBIAN/postinst - Post-installation script
+- debian/DEBIAN/postrm - Post-removal script
+- debian/DEBIAN/prerm - Pre-removal script
+- debian/usr/bin/autovibe-rator - Symlink to actual binary
+- debian/usr/lib/autovibe-rator/bin/autovibe-rator - Actual compiled binary
+- debian/usr/lib/autovibe-rator/etc/config.json.example - Example config
+- debian/lib/systemd/system/autovibe-rator.service - Systemd service file
 
 ## Implementation Steps
 
 ### 1. Install Build Dependencies
 
-```bash
-# On Debian/Ubuntu
-sudo apt-get update
-sudo apt-get install -y dpkg-dev dpkg-deb build-essential pkg-config
-```
+On Debian/Ubuntu:
+- dpkg-dev
+- dpkg-deb
+- build-essential
+- pkg-config
 
-### 2. Package Structure
+### 2. Package Metadata
 
-**debian/DEBIAN/control**:
-```
-Package: autovibe-rator
-Version: 0.1.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Maintainer: FileJunkie <filejunkie@example.com>
-Description: Autonomous GitHub agent for Mistral Vibe
- This package provides a local MCP server and webhook harness that enables
- Mistral Vibe to act as an autonomous code reviewer on GitHub repositories.
- .
- Features:
-  - MCP server with GitHub tools
-  - Webhook receiver for GitHub events
-  - Two-stage filtering to minimize token usage
-  - Automatic posting of reviews and comments
-
-Depends: nodejs (>= 20.0.0), npm
-Homepage: https://github.com/FileJunkie/autovibe-rator
-```
+Create debian/DEBIAN/control with:
+- Package: autovibe-rator
+- Version: from package.json
+- Section: utils
+- Priority: optional
+- Architecture: amd64
+- Maintainer: FileJunkie
+- Description: Autonomous GitHub agent for Mistral Vibe
+- Dependencies: nodejs (>= 20.0.0), npm
+- Homepage: https://github.com/FileJunkie/autovibe-rator
 
 ### 3. Build the Binary
 
-We have two options for the binary:
+Use pkg to create a standalone binary:
+- Input: compiled TypeScript from dist/agent/index.js
+- Output: dist/autovibe-rator binary
+- Target: node20-linux-x64
 
-**Option A: Bundled Node.js + Source (Recommended)**
-- Package includes Node.js runtime (for consistent environment)
-- Or rely on system Node.js (smaller package, but version dependent)
+Update package.json scripts:
+- pkg: runs pkg to build the binary
+- deb: builds TypeScript, builds binary, builds .deb package
 
-**Option B: Compiled Binary with pkg**
-- Use `pkg` to create a standalone binary
-- No Node.js dependency
-- Larger package size
+### 4. Debian File Structure Setup
 
-We'll use **Option B** (pkg) for simplicity and reliability.
+Create the debian directory structure:
+- debian/DEBIAN/ - control, postinst, postrm, prerm
+- debian/usr/bin/ - symlink target
+- debian/usr/lib/autovibe-rator/bin/ - binary location
+- debian/usr/lib/autovibe-rator/etc/ - config example
+- debian/lib/systemd/system/ - systemd service
 
-**package.json updates**:
-```json
-{
-  "scripts": {
-    "build": "tsc",
-    "pkg": "pkg dist/agent/index.js --output dist/autovibe-rator --targets node20-linux-x64",
-    "deb": "npm run build && npm run pkg && dpkg-deb --build debian"
-  },
-  "pkg": {
-    "assets": [
-      "node_modules/**/*",
-      "dist/agent/**/*"
-    ]
-  }
-}
-```
+### 5. Post-Installation Script (debian/DEBIAN/postinst)
 
-### 4. Debian File Structure
+Script that runs after package installation:
+- Create /etc/autovibe-rator directory
+- Copy config.json.example to config.json if it doesn't exist
+- Set permissions on config.json to 600
+- Create symlink from /usr/bin/autovibe-rator to the actual binary
+- Reload systemd and enable the service (don't start automatically)
+- Run ldconfig
 
-```bash
-# Create debian directory structure
-mkdir -p debian/DEBIAN
-mkdir -p debian/usr/bin
-mkdir -p debian/usr/lib/autovibe-rator/bin
-mkdir -p debian/usr/lib/autovibe-rator/etc
-mkdir -p debian/lib/systemd/system
-```
+Make it executable.
 
-**debian/DEBIAN/postinst** (make executable):
-```bash
-#!/bin/sh
+### 6. Pre-Removal Script (debian/DEBIAN/prerm)
 
-set -e
+Script that runs before package removal:
+- Stop the autovibe-rator service if running
 
-# Create config directory
-mkdir -p /etc/autovibe-rator
+Make it executable.
 
-# Copy example config if it doesn't exist
-if [ ! -f /etc/autovibe-rator/config.json ]; then
-    cp /usr/lib/autovibe-rator/etc/config.json.example /etc/autovibe-rator/config.json
-    chmod 600 /etc/autovibe-rator/config.json
-fi
+### 7. Post-Removal Script (debian/DEBIAN/postrm)
 
-# Create symlink for binary
-ln -sf /usr/lib/autovibe-rator/bin/autovibe-rator /usr/bin/autovibe-rator
+Script that runs after package removal:
+- Disable and stop the service
+- Remove the symlink from /usr/bin/autovibe-rator
+- Backup existing config.json to config.json.bak
 
-# Enable and start systemd service
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl daemon-reload
-    systemctl enable autovibe-rator
-    # Don't start automatically - user should configure first
-    # systemctl start autovibe-rator
-fi
+Make it executable.
 
-# Update ldconfig if needed
-ldconfig
+### 8. Systemd Service File
 
-exit 0
-```
+Create debian/lib/systemd/system/autovibe-rator.service with:
 
-**debian/DEBIAN/postrm** (make executable):
-```bash
-#!/bin/sh
+Unit section:
+- Description: autovibe-rator - Autonomous GitHub agent for Mistral Vibe
+- After: network.target
 
-set -e
+Service section:
+- Type: simple
+- User: autovibe-rator
+- Group: autovibe-rator
+- WorkingDirectory: /etc/autovibe-rator
+- Environment: CONFIG_PATH=/etc/autovibe-rator/config.json
+- Environment: NODE_ENV=production
+- ExecStart: /usr/bin/autovibe-rator
+- Restart: always
+- RestartSec: 5
+- NoNewPrivileges: true
+- PrivateTmp: true
+- ProtectSystem: strict
+- ProtectHome: true
+- ReadWritePaths: /etc/autovibe-rator
 
-# Disable and stop service
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl stop autovibe-rator || true
-    systemctl disable autovibe-rator || true
-    systemctl daemon-reload
-fi
+Install section:
+- WantedBy: multi-user.target
 
-# Remove symlink
-rm -f /usr/bin/autovibe-rator
+### 9. Build Script
 
-# Backup config but don't delete (user might want to keep it)
-if [ -f /etc/autovibe-rator/config.json ]; then
-    cp /etc/autovibe-rator/config.json /etc/autovibe-rator/config.json.bak
-fi
+Create scripts/build-deb.sh that:
+- Cleans previous builds
+- Runs TypeScript build
+- Builds binary with pkg
+- Prepares debian directory structure
+- Copies binary, config example, control file, scripts, service file
+- Sets executable permissions
+- Runs dpkg-deb --build debian
+- Cleans up temporary files
 
-exit 0
-```
+### 10. Configuration Template
 
-**debian/DEBIAN/prerm** (make executable):
-```bash
-#!/bin/sh
-
-set -e
-
-# Stop service before removal
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl stop autovibe-rator || true
-fi
-
-exit 0
-```
-
-### 5. Systemd Service File
-
-**debian/lib/systemd/system/autovibe-rator.service**:
-```ini
-[Unit]
-Description=autovibe-rator - Autonomous GitHub agent for Mistral Vibe
-After=network.target
-
-[Service]
-Type=simple
-User=autovibe-rator
-Group=autovibe-rator
-WorkingDirectory=/etc/autovibe-rator
-Environment=CONFIG_PATH=/etc/autovibe-rator/config.json
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/autovibe-rator
-Restart=always
-RestartSec=5
-
-# Security
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/etc/autovibe-rator
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 6. Build Script
-
-Create `scripts/build-deb.sh`:
-```bash
-#!/bin/bash
-
-set -e
-
-echo "Building autovibe-rator..."
-
-# Clean previous builds
-rm -rf dist debian/DEBIAN/{postinst,postrm,prerm} debian/usr debian/lib
-
-# Build TypeScript
-npm run build
-
-# Build binary with pkg
-npm run pkg
-
-# Prepare debian structure
-echo "Preparing debian package structure..."
-
-# Create directories
-mkdir -p debian/DEBIAN
-mkdir -p debian/usr/bin
-mkdir -p debian/usr/lib/autovibe-rator/bin
-mkdir -p debian/usr/lib/autovibe-rator/etc
-mkdir -p debian/lib/systemd/system
-
-# Copy binary
-cp dist/autovibe-rator debian/usr/lib/autovibe-rator/bin/autovibe-rator
-chmod +x debian/usr/lib/autovibe-rator/bin/autovibe-rator
-
-# Copy config example
-cp config.template.json debian/usr/lib/autovibe-rator/etc/config.json.example
-
-# Copy control file
-cp debian/DEBIAN/control debian/DEBIAN/control
-chmod 644 debian/DEBIAN/control
-
-# Copy scripts (make executable)
-cp debian/DEBIAN/postinst debian/DEBIAN/postinst
-cp debian/DEBIAN/postrm debian/DEBIAN/postrm
-cp debian/DEBIAN/prerm debian/DEBIAN/prerm
-chmod +x debian/DEBIAN/postinst debian/DEBIAN/postrm debian/DEBIAN/prerm
-
-# Copy systemd service
-cp debian/lib/systemd/system/autovibe-rator.service debian/lib/systemd/system/autovibe-rator.service
-
-# Build the package
-echo "Building .deb package..."
-dpkg-deb --build debian
-
-# Move to output
-echo "Package built: autovibe-rator.deb"
-
-# Clean up
-rm -rf debian
-
-echo "Done!"
-```
-
-### 7. Configuration Template
-
-**config.template.json** (in root, commit to git):
-```json
-{
-  "github": {
-    "appId": "YOUR_GITHUB_APP_ID",
-    "installationId": "YOUR_INSTALLATION_ID",
-    "privateKeyPath": "/etc/autovibe-rator/github-app-private-key.pem",
-    "webhookSecret": "YOUR_WEBHOOK_SECRET"
-  },
-  "server": {
-    "port": 3000,
-    "host": "0.0.0.0"
-  },
-  "filter": {
-    "allowedRepos": [
-      "FileJunkie/autovibe-rator"
-    ],
-    "pingPatterns": [
-      "@autovibe-rator",
-      "@autovibe-rator[bot]"
-    ]
-  }
-}
-```
-
-### 8. Makefile (Optional)
-
-```makefile
-.PHONY: all build clean deb
-
-all: build deb
-
-build:
-	npm run build
-	npm run pkg
-
-clean:
-	rm -rf dist debian *.deb
-
-deb: build
-	rm -rf debian
-	mkdir -p debian/DEBIAN debian/usr/bin debian/usr/lib/autovibe-rator/bin debian/usr/lib/autovibe-rator/etc debian/lib/systemd/system
-	cp dist/autovibe-rator debian/usr/lib/autovibe-rator/bin/
-	cp config.template.json debian/usr/lib/autovibe-rator/etc/config.json.example
-	cp debian/DEBIAN/control debian/DEBIAN/
-	cp debian/DEBIAN/postinst debian/DEBIAN/
-	cp debian/DEBIAN/postrm debian/DEBIAN/
-	cp debian/DEBIAN/prerm debian/DEBIAN/
-	cp debian/lib/systemd/system/autovibe-rator.service debian/lib/systemd/system/
-	chmod +x debian/DEBIAN/postinst debian/DEBIAN/postrm debian/DEBIAN/prerm
-	chmod +x debian/usr/lib/autovibe-rator/bin/autovibe-rator
-	dpkg-deb --build debian
-
-.PHONY: test
-install: deb
-	sudo dpkg -i autovibe-rator.deb
-```
+Create config.template.json in project root (commit to git) with:
+- github.appId
+- github.installationId
+- github.privateKeyPath
+- github.webhookSecret
+- server.port
+- server.host
+- filter.allowedRepos
+- filter.pingPatterns
 
 ## Testing the Package
 
 ### Build and Install Locally
 
-```bash
-# Build the package
-make deb
-
-# Install it
-sudo dpkg -i autovibe-rator.deb
-
-# Configure
-sudo cp /usr/lib/autovibe-rator/etc/config.json.example /etc/autovibe-rator/config.json
-sudo nano /etc/autovibe-rator/config.json  # Add your values
-
-# Start the service
-sudo systemctl start autovibe-rator
-sudo systemctl status autovibe-rator
-
-# Check logs
-journalctl -u autovibe-rator -f
-```
+1. Run: make deb or npm run deb
+2. Install: sudo dpkg -i autovibe-rator.deb
+3. Copy example config: sudo cp /usr/lib/autovibe-rator/etc/config.json.example /etc/autovibe-rator/config.json
+4. Edit config with your values
+5. Start service: sudo systemctl start autovibe-rator
+6. Check status: sudo systemctl status autovibe-rator
+7. Check logs: journalctl -u autovibe-rator -f
 
 ### Verify Installation
 
-```bash
-# Check binary
-which autovibe-rator
-autovibe-rator --version
+- which autovibe-rator returns /usr/bin/autovibe-rator
+- autovibe-rator --version works
+- /etc/autovibe-rator/ directory exists
+- systemctl is-enabled autovibe-rator shows enabled
+- systemctl is-active autovibe-rator shows active (after starting)
 
-# Check config
-ls -la /etc/autovibe-rator/
+### Check Package Contents
 
-# Check service
-systemctl is-enabled autovibe-rator
-systemctl is-active autovibe-rator
-```
-
-## Package Contents Check
-
-After building, verify the .deb contains everything:
-
-```bash
-# List contents
-dpkg-deb --contents autovibe-rator.deb
-
-# Extract and inspect
-dpkg-deb --extract autovibe-rator.deb /tmp/deb-test
-find /tmp/deb-test -type f
-```
+- dpkg-deb --contents autovibe-rator.deb lists all files
+- dpkg-deb --extract autovibe-rator.deb /tmp/deb-test for inspection
 
 ## Success Criteria
 
-- [ ] `.deb` package builds without errors
+- [ ] .deb package builds without errors
 - [ ] Package installs cleanly on Debian/Ubuntu
 - [ ] Service starts and runs correctly
 - [ ] Configuration directory and example created
-- [ ] Binary is accessible at `/usr/bin/autovibe-rator`
+- [ ] Binary is accessible at /usr/bin/autovibe-rator
 - [ ] Systemd service is configured and can be managed
 
 ## Next Steps
