@@ -1,0 +1,33 @@
+{
+  "name": "autovibe-rator",
+  "version": "0.1.0",
+  "description": "Autonomous GitHub code review agent harness for Mistral Vibe",
+  "type": "module",
+  "scripts": {
+    "agent:dev": "tsx src/agent/index.ts",
+    "agent:build": "tsc",
+    "agent:start": "node dist/agent/index.js",
+    "docker:build": "docker build -t autovibe-agent .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@octokit/auth-app": "^7.1.0",
+    "@octokit/rest": "^21.0.0",
+    "@octokit/webhooks-types": "^7.5.0",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.12.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^2.1.0"
+  }
+}

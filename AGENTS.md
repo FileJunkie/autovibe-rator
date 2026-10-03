@@ -1,124 +1,89 @@
 # Project Instructions for Mistral Vibe
 
-## Current Process (Updated)
+## Project
 
-**We are currently in PLAN mode finishing the documentation.**
+**autovibe-rator** — an autonomous GitHub agent harness for Mistral Vibe.
+It receives GitHub webhooks, filters them, runs a sandboxed Vibe agent on the
+repository, posts the answer as a comment or PR review, and pushes the
+agent's validated work to an issue-referencing branch.
 
-After plans are finalized:
+## Current Status (Updated)
 
-1. **I will explain** how to set up MCP so we can create GitHub issues from the plans in `.vibe/plans/`
-
-2. **You will create GitHub issues** for each plan (3 total):
-   - **Issue 1**: MCP Setup (mcp-setup.md)
-   - **Issue 2**: Local harness + GitHub setup (github-bot.md + local-agent.md)
-   - **Issue 3**: Debian package + deployment (debian-package.md + publishing.md)
-
-3. **You will tell me which issue to work on** - I will switch to IMPLEMENT mode for that specific issue only
-
-## Issue Details
-
-### Issue 1: MCP Setup
-**Plan**: mcp-setup.md
-
-**What I will do**:
-- Implement the MCP server with GitHub tools
-- Configure it for this project
-- **I will ask you for**: GitHub access token/keys for authentication
-
-**After completion**: I will remove the plan file from the repo.
-
-### Issue 2: Local Harness + GitHub Setup
-**Combines**: github-bot.md, local-agent.md
-
-**What I will do**:
-- Implement the webhook harness with Docker sandboxing
-- Implement the two-stage filtering
-
-**What I will ask you to do**:
-- Set up GitHub App for bot identity
-- Configure GitHub webhook with ngrok URL
-- Create a separate sandbox GitHub repository for testing
-
-**Result**: A working local harness that can receive webhooks, invoke Vibe in Docker, and post responses back to GitHub.
-
-### Issue 3: Debian Package + Deployment
-**Combines**: debian-package.md, publishing.md
-
-**What I will do**:
-- Create the .deb package with Docker dependency
-- Set up the publishing workflow to gh-pages
-
-**What I will tell you**:
-- How to install the .deb on your VPS
-- How to configure it
-- How to start the service
-
-**Result**: An installable .deb package that users can install via apt.
+- **Local harness: implemented and tested.** Webhook verification, two-stage
+  filtering, Docker sandbox, persona selection, deterministic validation +
+  push, and structured logging are all in place.
+- **CI: implemented.** `.github/workflows/ci.yml` runs lint, typecheck, and
+  tests on every PR and every push to `main`.
+- **Remaining work**: Debian package + VPS deployment (gh-pages publishing,
+  systemd unit with `LOG_FORMAT=syslog`).
 
 ## Mode Tracking
 
-### Current Mode: PLAN
+The old PLAN/IMPLEMENT convention still applies: say `plan` / `let's plan` /
+`stop` to switch to PLAN mode, or `implement issue #N` to switch to
+IMPLEMENT mode for that issue only. In PLAN mode, do not implement.
 
-You should:
-- Review plans in `.vibe/plans/`
-- Request clarifications
-- Approve the plans
+## Commands
 
-### Mode Transition
+```
+npm run agent:dev      # run the harness locally
+npm test               # vitest suite
+npm run lint           # eslint
+npm run typecheck      # tsc --noEmit
+npm run docker:build   # build the autovibe-agent sandbox image
+```
 
-**PLAN mode** → **IMPLEMENT mode** when you explicitly say: "implement issue #1", "implement issue #2", or "implement issue #3"
-
-**IMPLEMENT mode** → **PLAN mode** when you say "plan", "let's plan", or "stop"
+Required environment (see `.env.example`; the harness refuses to start
+without `ALLOWED_OWNERS`): `GITHUB_APP_ID`, `GITHUB_WEBHOOK_SECRET`,
+`ALLOWED_OWNERS`, `MISTRAL_API_KEY`. Never commit `.env` or `*.pem`.
 
 ## Architecture Decisions (FINALIZED)
 
-These are fixed - do not re-discuss:
+These are fixed — do not re-discuss or weaken them:
 
-### Trigger Mechanism
-- GitHub Webhooks (real-time)
-- Requires public URL (ngrok/Cloudflare Tunnel for local dev)
+- **Trigger**: GitHub webhooks; public URL via ngrok/Cloudflare Tunnel in dev.
+- **Filtering**: two stages — stage 1 (`@autovibe-rator` ping, not the bot
+  itself), stage 2 (event/action, fail-closed owner allowlist, author gate).
+  The author gate defaults to repo collaborators and falls back to a
+  collaborator-permission API check when the payload lacks
+  `author_association`.
+- **Personas**: `personas/*.md` are copied into the workspace
+  (`.autovibe/personas/`, git-excluded); the agent picks the persona matching
+  the request. Adding a persona = adding a file with a `# Title` and a
+  `> summary` line.
+- **Sandboxing**: Docker per invocation. The agent receives a scoped
+  read-only installation token and runs with `--trust --auto-approve`; it can
+  commit locally but never push. The harness-side push token never enters the
+  container.
+- **Deterministic push**: only the harness pushes, after validating: HEAD on
+  the allowed branch, fast-forward history, commits present. Push goes to the
+  pinned repository URL with an explicit refspec, after stripping
+  agent-modified git config (`credential.helper`, `url.*`, `core.hooksPath`).
+  Issue pings push `autovibe-rator/issue-N`; PR pings push the PR head branch.
+- **Response**: comments on issues, formal reviews on PRs.
+- **Authentication**: GitHub App (`autovibe-rator[bot]`), installation tokens;
+  App needs Contents/Issues/Pull-requests read & write.
+- **Logging**: leveled single-line records (`LOG_LEVEL`, `LOG_FORMAT`).
+  `LOG_FORMAT=syslog` emits RFC 5424 `<PRI>` prefixes for journald/syslog.
 
-### Reviewer Persona
-- Custom system prompt for code review
-- Separate bot identity (`autovibe-rator[bot]`)
-- Dedicated Vibe agent profile
+## Security Invariants — Do Not Weaken
 
-### Token Optimization
-- Two-Stage Filtering
-- Stage 1: Keyword check (`@autovibe-rator` ping)
-- Stage 2: Event type, author, repo validation
-- Only invoke Vibe after both stages pass
-
-### Response Mechanism
-- Both comments and reviews
-- Post GitHub comments for visibility
-- Create formal PR reviews for tracking
-
-### Authentication
-- GitHub App
-- Bot identity: `autovibe-rator[bot]`
-- Granular permissions
-- JWT authentication
-
-### Safety
-- Docker sandboxing per invocation
-- Automatic cleanup via Docker --rm flag
-- Isolated filesystem per container
+1. `ALLOWED_OWNERS` is fail-closed; the harness must not start without it.
+2. Branch names and repo URLs pass the strict whitelists in
+   `src/utils/git-branch.ts` before reaching git or any shell hook.
+3. The sandbox never receives a push-capable token.
+4. The harness push is pinned: validated URL, explicit refspec, sanitized
+   local git config, and the workspace `pre-push` guard still applies.
+5. Everything posted to GitHub passes `scrubTokens()`.
+6. Docker sandboxing is the default; direct invocation (`useDocker: false`)
+   is an unsandboxed dev fallback — never enable it in production paths.
 
 ## For Developer (@filejunkie)
 
-### Next Immediate Steps:
-1. Review all plans in `.vibe/plans/`
-2. Ask me any clarifying questions about the plans
-3. Once satisfied, ask me to explain MCP setup for issue creation
-4. Create 3 GitHub issues (one per plan grouping as described above)
-5. Delete the plan files after issue creation
-6. Tell me which issue to start with (e.g., "implement issue #1")
-
-### Implementation Order:
-1. Issue 1: MCP Setup (mcp-setup.md) - I'll ask you for GitHub access keys
-2. Issue 2: Local harness + GitHub setup (github-bot.md + local-agent.md)
-3. Issue 3: Debian package + VPS deployment (debian-package.md + publishing.md)
+- Setup and first-run instructions: [QUICKSTART.md](QUICKSTART.md)
+- Overview and configuration reference: [README.md](README.md)
+- When changing harness code, run `npm test`, `npm run lint`, and
+  `npm run typecheck` before considering it done.
 
 ## Auto-Update
 
@@ -126,4 +91,6 @@ This file may be automatically updated as the project evolves.
 
 ---
 
-**Mode Check**: If you see plan files in `.vibe/plans/`, you are in PLAN mode. Do not implement.
+**Mode Check**: `.vibe/plans/` no longer contains plan files (they were
+converted to GitHub issues). Issue 2 work is implemented on
+`4-issue-2-local-harness-github-setup`. Debian packaging (issue 3) is next.
